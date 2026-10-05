@@ -1,9 +1,14 @@
 import { MODULE_BY_KEY } from '@/data/modules'
 import { allRows, listRows, resetRows, saveRows } from '@/data/local-store'
+import { deformationStats } from '@/api/deformation-service'
 import type { ActionResult, EntryRow, ModuleMeta, OverviewResult, PageResult } from '@/data/types'
 
 // 会写进数据的「往回走」动作：命中就把这条记录标成异常态，看板上能一眼看出来。
 const NEGATIVE_ACTIONS = ['撤销', '作废', '拒绝', '驳回', '停用', '忽略', '下线', '回滚']
+
+// 形变记录走独立的版本化领域服务（校核/异常判定/复测都要追加新版本），
+// 通用动作流转不允许碰它，避免绕过版本与并发控制错写旧值。
+const DEFORMATION_KEY = 'deformation'
 
 export function moduleMeta(key: string): ModuleMeta {
   const meta = MODULE_BY_KEY.get(key)
@@ -24,11 +29,17 @@ export function filterRows(rows: EntryRow[], filters: Record<string, string>): E
 }
 
 export function listEntries(key: string, filters: Record<string, string> = {}): PageResult {
+  if (key === DEFORMATION_KEY) {
+    throw new Error('形变记录请使用形变观测领域服务读取（含版本与最新宽度）')
+  }
   const matched = filterRows(listRows(key), filters)
   return { items: matched, total: matched.length, page: 1, size: matched.length }
 }
 
 export function runAction(key: string, id: number, action: string): ActionResult {
+  if (key === DEFORMATION_KEY) {
+    return { ok: false, message: '形变记录的校核/异常/复测必须走版本化操作，请到形变观测页面执行' }
+  }
   const meta = moduleMeta(key)
   const target = meta.actionTargets[action]
   if (!target) {
@@ -57,6 +68,9 @@ export function runAction(key: string, id: number, action: string): ActionResult
 }
 
 export function resetModule(key: string): PageResult {
+  if (key === DEFORMATION_KEY) {
+    throw new Error('形变记录重置请使用形变观测领域服务')
+  }
   resetRows(key)
   return listEntries(key)
 }
@@ -86,7 +100,17 @@ export function downloadEntries(key: string): void {
 
 export function loadOverview(): OverviewResult {
   const rows = allRows()
+  // 形变模块的统计以版本化领域数据为准，不能再数通用台账里的平面副本。
+  const deforma = deformationStats()
   const modules = [...MODULE_BY_KEY.values()].map((meta) => {
+    if (meta.key === DEFORMATION_KEY) {
+      return {
+        name: meta.name,
+        created: deforma.total,
+        pending: deforma.pendingCount,
+        abnormal: deforma.abnormalCount,
+      }
+    }
     const entries = rows[meta.key] ?? []
     return {
       name: meta.name,
