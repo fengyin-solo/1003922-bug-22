@@ -30,6 +30,8 @@ export type PageResult = {
 export type ActionResult = {
   ok: boolean
   message: string
+  /** 并发冲突：本机或另一标签页已先写入，本次操作未生效，页面应刷新后展示先成功的结果。 */
+  conflict?: boolean
 }
 
 export type OverviewResult = {

@@ -85,7 +85,6 @@ const meta = moduleMeta('crack')
 const columns = ["测点编号", "隐患点编号", "裂缝编号", "初始宽度", "当前宽度", "变化速率", "监测人", "测点状态"]
 const actions = ["记录数据", "标记加速", "确认稳定"]
 const statuses = ["正常", "加速发展", "趋于稳定", "已修复", "已废弃"]
-const stats = [{"label": "测点总数", "value": 0}, {"label": "加速发展数", "value": 0}, {"label": "正常测点数", "value": 0}]
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
@@ -98,6 +97,12 @@ const statusSummary = computed(() =>
     count: rows.value.filter((row) => String(row.status) === status).length,
   })),
 )
+// 统计跟着列表数据走：形变校核同步过来的当前宽度，统计口径和列表保持一致。
+const stats = computed(() => [
+  { label: '测点总数', value: rows.value.length },
+  { label: '加速发展数', value: rows.value.filter((row) => String(row.status) === '加速发展').length },
+  { label: '正常测点数', value: rows.value.filter((row) => String(row.status) === '正常').length },
+])
 
 function resetFilters() {
   filters.value = {}
